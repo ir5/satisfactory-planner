@@ -1,7 +1,9 @@
 import graphviz
 import csv
 from dataclasses import dataclass
+from collections import defaultdict
 from typing import Optional
+import json
 
 
 @dataclass
@@ -23,7 +25,7 @@ class ItemNode:
     comsumer_recipe_id: Optional[int]
 
     def label(self, node_id):
-        return f"[{node_id}]\n{self.rate:.1f}/min\n{self.name}"
+        return f"[{node_id}]\n{self.rate:.3f}/min\n{self.name}"
 
 
 @dataclass
@@ -34,7 +36,7 @@ class RecipeNode:
     out_ids: list[int]
 
     def label(self):
-        return f"x{self.machines:.2f}"
+        return f"x{self.machines:.7f}"
 
 
 @dataclass
@@ -106,8 +108,7 @@ class GenGraph:
         dot.render(directory="output")
 
 
-
-def main():
+def load_reicpe_sfplus():
     with open("DB.csv") as f:
         reader = csv.reader(f)
 
@@ -124,6 +125,106 @@ def main():
 
             recipe = Recipe(ins, outs)
             recipes.append(recipe)
+
+
+def load_recipe_vanilla():
+    with open("DB_vanilla.json", "r") as f:
+        d = json.load(f)
+
+    cname_to_name = {}
+    for key, val in d["items"].items():
+        if key.startswith("Desc_"):
+            cname_to_name[val["className"]] = val["name"]
+
+    recipes = []
+
+    def add_item(item):
+        t = float(item["time"])
+        if not item["inMachine"]:
+            return
+
+        ok = True
+        for ing in item["ingredients"]:
+            if not ing["item"].startswith("Desc_"):
+                ok = False
+        for ing in item["products"]:
+            if not ing["item"].startswith("Desc_"):
+                ok = False
+        if not ok:
+            return
+
+        ins = [
+            (cname_to_name[ing["item"]], 60 / t * ing["amount"])
+            for ing in item["ingredients"]
+        ]
+        outs = [
+            (cname_to_name[ing["item"]], 60 / t * ing["amount"])
+            for ing in item["products"]
+        ]
+        recipe = Recipe(ins, outs)
+        recipes.append(recipe)
+
+    for item in d["recipes"].values():
+        if not item["alternate"]:
+            add_item(item)
+    for item in d["recipes"].values():
+        if item["alternate"]:
+            add_item(item)
+
+    return recipes
+
+
+def load_recipe_vanilla1_0():
+    with open("DB_stable.json", "r") as f:
+        d = json.load(f)
+
+    def is_valid_cname(cname):
+        return cname.startswith("/Game/FactoryGame/Resource/Parts/") or\
+            cname.startswith("/Game/FactoryGame/Resource/RawResources")
+
+    cname_to_name = defaultdict(str)
+    for val in d["itemsData"].values():
+        if is_valid_cname(val["className"]):
+            cname_to_name[val["className"]] = val["name"]
+
+    recipes = []
+
+    def add_item(item):
+        t = float(item["mManufactoringDuration"])
+        if "mProducedIn" not in item:
+            return
+
+        for ing in item["ingredients"]:
+            if not is_valid_cname(ing):
+                return
+        for ing in item["produce"]:
+            if not is_valid_cname(ing):
+                return
+
+        ins = [
+            (cname_to_name[ing], 60 / t * amount)
+            for ing, amount in item["ingredients"].items()
+        ]
+        outs = [
+            (cname_to_name[ing], 60 / t * amount)
+            for ing, amount in item["produce"].items()
+        ]
+        recipe = Recipe(ins, outs)
+        recipes.append(recipe)
+
+    for item in d["recipesData"].values():
+        if not item["name"].startswith("Alternate:"):
+            add_item(item)
+    for item in d["recipesData"].values():
+        if item["name"].startswith("Alternate:"):
+            add_item(item)
+
+    return recipes
+
+
+def main():
+    # recipes = load_recipe_vanilla()
+    recipes = load_recipe_vanilla1_0()
 
     item_to_recipe: dict[str, list[Recipe]] = {}
 
