@@ -91,8 +91,17 @@ class GenGraph:
 
         return True
 
+    def scale(self, factor: float):
+        assert factor > 0
+
+        for recipe_node in self.recipe_nodes:
+            recipe_node.machines *= factor
+        for item_node in self.item_nodes:
+            item_node.rate *= factor
+
     def to_viz(self):
         dot = graphviz.Digraph("plan")
+        dot.graph_attr["rankdir"] = "BT"
 
         for i, item_node in enumerate(self.item_nodes):
             dot.node(f"I{i}", item_node.label(i), shape="circle")
@@ -254,6 +263,17 @@ def main():
         command = input()
 
         try:
+            tokens = command.rstrip().split()
+
+            if len(tokens) == 2:
+                if tokens[0] == "scale":
+                    factor = float(tokens[1])
+                    print("scaling factor:", factor)
+                    gen_graph.scale(factor)
+                continue
+            elif len(tokens) > 2:
+                continue
+
             item_node_id = int(command)
             item_node = gen_graph.item_nodes[item_node_id]
 
