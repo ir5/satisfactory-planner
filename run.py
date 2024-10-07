@@ -10,6 +10,7 @@ import json
 class Recipe:
     ins: list[tuple[str, float]]
     outs: list[tuple[str, float]]
+    machine_name: str
 
     def str(self):
         instr = " ".join(f"{name} {rate:.2f}/min" for name, rate in self.ins)
@@ -25,18 +26,19 @@ class ItemNode:
     comsumer_recipe_id: Optional[int]
 
     def label(self, node_id):
-        return f"[{node_id}]\n{self.rate:.3f}/min\n{self.name}"
+        return f"[{node_id}]\n{self.rate:.5f}/min\n{self.name}"
 
 
 @dataclass
 class RecipeNode:
     recipe: Recipe
     machines: float
+    machine_name: str
     in_ids: list[int]
     out_ids: list[int]
 
     def label(self):
-        return f"x{self.machines:.7f}"
+        return f"{self.machine_name}\nx{self.machines:.9f}"
 
 
 @dataclass
@@ -86,7 +88,13 @@ class GenGraph:
             self.item_nodes.append(new_item)
             recipe_ins.append(new_item_id)
 
-        recipe_node = RecipeNode(recipe=recipe, machines=machines, in_ids=recipe_ins, out_ids=recipe_outs)
+        recipe_node = RecipeNode(
+            recipe=recipe,
+            machines=machines,
+            machine_name=recipe.machine_name,
+            in_ids=recipe_ins,
+            out_ids=recipe_outs
+        )
         self.recipe_nodes.append(recipe_node)
 
         return True
@@ -218,7 +226,15 @@ def load_recipe_vanilla1_0():
             (cname_to_name[ing], 60 / t * amount)
             for ing, amount in item["produce"].items()
         ]
-        recipe = Recipe(ins, outs)
+
+        machine_name = ""
+        for cand in item["mProducedIn"]:
+            try:
+                machine_name = cand.split("_")[-2].removesuffix("Mk1")
+            except Exception:
+                continue
+
+        recipe = Recipe(ins, outs, machine_name)
         recipes.append(recipe)
 
     for item in d["recipesData"].values():
