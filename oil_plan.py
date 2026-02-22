@@ -434,7 +434,7 @@ def main():
     parser.add_argument("rate", type=float, help="Target output rate (/min)")
     parser.add_argument(
         "--out",
-        default="output/oil_plan",
+        default="output/plan",
         help="Output path prefix for graphviz render (default: output/oil_plan)",
     )
     parser.add_argument(
